@@ -38,7 +38,7 @@ Manager::Impl * Manager::Impl::init(const Config &cfg)
     for (int64_t i = 0; i < (int64_t)cfg.numWorlds; i++) {
         world_inits[i] = WorldInit {
             episode_mgr,
-            cfg.numAgentsPerWorld,
+            int32_t(cfg.numAgentsPerWorld),
         };
     }
 
@@ -92,7 +92,7 @@ MADRONA_EXPORT GPUTensor Manager::actionTensor() const
 {
     void *dev_ptr = impl_->mwGPU.getExported(1);
 
-    return GPUTensor(dev_ptr, GPUTensor::ElementType::Float,
+    return GPUTensor(dev_ptr, GPUTensor::ElementType::Float32,
         {impl_->cfg.numWorlds, impl_->cfg.numAgentsPerWorld, 3},
          impl_->cfg.gpuID);
 }
@@ -101,7 +101,7 @@ MADRONA_EXPORT GPUTensor Manager::positionTensor() const
 {
     void *dev_ptr = impl_->mwGPU.getExported(2);
 
-    return GPUTensor(dev_ptr, GPUTensor::ElementType::Float,
+    return GPUTensor(dev_ptr, GPUTensor::ElementType::Float32,
         {impl_->cfg.numWorlds, impl_->cfg.numAgentsPerWorld, 3},
          impl_->cfg.gpuID);
 }

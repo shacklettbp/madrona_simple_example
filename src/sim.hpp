@@ -22,10 +22,10 @@ struct WorldReset {
 };
 
 struct Action {
-    math::Vector3 positionDelta; // Continuous action
+    madrona::math::Vector3 positionDelta; // Continuous action
 };
 
-struct ExampleAgent : public madrona::Archetype<
+struct Agent : public madrona::Archetype<
     Position,
     Action
 > {};

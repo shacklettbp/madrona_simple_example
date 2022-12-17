@@ -30,10 +30,11 @@ NB_MODULE(madrona_simple_example_python, m) {
                 .debugCompile = debug_compile,
             });
         }, nb::arg("gpu_id"), nb::arg("num_worlds"),
-           nb::arg("num_agents_per_world"), nb::arg("debug_compile", true)
+           nb::arg("num_agents_per_world"), nb::arg("debug_compile") = true)
         .def("step", &Manager::step)
         .def("reset_tensor", &Manager::resetTensor)
         .def("action_tensor", &Manager::actionTensor)
+        .def("position_tensor", &Manager::positionTensor)
     ;
 }
 

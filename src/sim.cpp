@@ -2,7 +2,6 @@
 #include <madrona/mw_gpu_entry.hpp>
 
 using namespace madrona;
-using namespace madrona::phys;
 using namespace madrona::math;
 
 namespace SimpleExample {
@@ -36,7 +35,7 @@ static void resetWorld(Engine &ctx)
     const math::Vector2 bounds { -10.f, 10.f };
     float bounds_diff = bounds.y - bounds.x;
 
-    for (CountT i = 0; i < max_instances; i++) {
+    for (int32_t i = 0; i < ctx.data().numAgents; i++) {
         Entity agent = ctx.data().agents[i];
 
         math::Vector3 pos {
@@ -59,10 +58,13 @@ inline void resetSystem(Engine &ctx, WorldReset &reset)
     resetWorld(ctx);
 }
 
-inline void actionSystem(Engine &, const Action &action, Position &pos)
+inline void actionSystem(Engine &, Action &action, Position &pos)
 {
     // Update agent's position
     pos += action.positionDelta;
+
+    // Clear action for next step
+    action.positionDelta = Vector3 {0, 0, 0};
 }
 
 void Sim::setupTasks(TaskGraph::Builder &builder)
@@ -87,8 +89,10 @@ Sim::Sim(Engine &ctx, const WorldInit &init)
     // agent entity IDs
     agents = (Entity *)rawAlloc(sizeof(Entity) * init.numAgents);
 
-    for (CountT i = 0; i < init.numAgents; i++) {
-        agents[i] = ctx.makeEntityNow<DynamicObject>();
+    for (int32_t i = 0; i < init.numAgents; i++) {
+        agents[i] = ctx.makeEntityNow<Agent>();
+
+        ctx.getUnsafe<Action>(agents[i]).positionDelta = Vector3 {0, 0, 0};
     }
 
     // Initial reset

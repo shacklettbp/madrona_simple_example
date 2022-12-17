@@ -25,7 +25,7 @@ target_link_libraries(simple_example_mgr PRIVATE
     simple_example_gpu_srcs
 )
 
-target_compile_definitions(gpu_hideseek_mgr PRIVATE
+target_compile_definitions(simple_example_mgr PRIVATE
     -DDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data/"
 )
 
