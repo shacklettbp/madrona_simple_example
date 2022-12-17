@@ -1,0 +1,13 @@
+[build-system]
+requires = []
+build-backend = "madrona-py-build"
+backend-path = ["external/madrona/py"]
+
+[project]
+name = "madrona_simple_example"
+version = "0.0.1"
+
+[tool.madrona.packages.madrona_simple_example]
+path = "src/madrona_simple_example"
+ext-out-dir = "build"
+extensions = [ "_madrona_simple_example_cpp" ]
