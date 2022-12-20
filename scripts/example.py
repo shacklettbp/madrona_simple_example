@@ -11,10 +11,10 @@ sim = madrona_simple_example_python.SimpleSimulator(
         bounds_max_x = 5,
         bounds_min_y = -5,
         bounds_max_y = 5,
-        min_width = 1,
-        max_width = 3,
-        min_height = 1,
-        max_height = 3,
+        min_width = 2,
+        max_width = 4,
+        min_height = 2,
+        max_height = 4,
 )
 
 # Only deal with x, y components

@@ -140,7 +140,11 @@ void Sim::setupTasks(TaskGraph::Builder &builder)
     auto output_sys = builder.parallelForNode<Engine, findOverlapsSystem,
         Entity, Position, Scale, OverlapInfo>({action_sys});
 
-    (void)output_sys;
+    // Sort the rectangles by WorldID
+    auto sort_sys =
+        builder.sortArchetypeNode<Rectangle, WorldID>({output_sys});
+
+    (void)sort_sys;
 
     printf("Setup done\n");
 }
