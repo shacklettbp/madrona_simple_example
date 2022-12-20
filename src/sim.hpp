@@ -10,10 +10,12 @@
 
 namespace SimpleExample {
 
-// 3D Position & Quaternion Rotation
+// 3D Position & Scale
 // These classes are defined in madrona/components.hpp
+// The majority of this code assumes everything is in the z = 0
+// plane, so only 2D is really supported by this example
 using madrona::base::Position;
-using madrona::base::Rotation;
+using madrona::base::Scale;
 
 class Engine;
 
@@ -25,9 +27,15 @@ struct Action {
     madrona::math::Vector3 positionDelta; // Continuous action
 };
 
-struct Agent : public madrona::Archetype<
+struct OverlapInfo {
+    int32_t numOverlaps;
+};
+
+struct Rectangle : public madrona::Archetype<
     Position,
-    Action
+    Scale,
+    Action,
+    OverlapInfo
 > {};
 
 struct Sim : public madrona::WorldBase {
@@ -37,11 +45,9 @@ struct Sim : public madrona::WorldBase {
 
     Sim(Engine &ctx, const WorldInit &init);
 
-    EpisodeManager *episodeMgr;
+    WorldInit initCfg;
+    madrona::Entity *rectangles;
     RNG rng;
-
-    madrona::Entity *agents;
-    int32_t numAgents;
 };
 
 class Engine : public ::madrona::CustomContext<Engine, Sim> {
