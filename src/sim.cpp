@@ -132,19 +132,22 @@ inline void findOverlapsSystem(Engine &ctx,
 void Sim::setupTasks(TaskGraph::Builder &builder)
 {
     auto reset_sys =
-        builder.parallelForNode<Engine, resetSystem, WorldReset>({});
-
-    auto action_sys = builder.parallelForNode<Engine, actionSystem,
-        Action, Position>({reset_sys});
-
-    auto output_sys = builder.parallelForNode<Engine, findOverlapsSystem,
-        Entity, Position, Scale, OverlapInfo>({action_sys});
+        builder.addToGraph<ParallelForNode<Engine, resetSystem, WorldReset>>({});
 
     // Sort the rectangles by WorldID
     auto sort_sys =
-        builder.sortArchetypeNode<Rectangle, WorldID>({output_sys});
+        builder.addToGraph<SortArchetypeNode<Rectangle, WorldID>>({reset_sys});
 
-    (void)sort_sys;
+    auto clear_tmp_alloc =
+        builder.addToGraph<ResetTmpAllocNode>({sort_sys});
+
+    auto action_sys = builder.addToGraph<ParallelForNode<Engine, actionSystem,
+        Action, Position>>({clear_tmp_alloc});
+
+    auto output_sys = builder.addToGraph<ParallelForNode<Engine, findOverlapsSystem,
+        Entity, Position, Scale, OverlapInfo>>({action_sys});
+
+    (void)output_sys;
 
     printf("Setup done\n");
 }

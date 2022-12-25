@@ -5,8 +5,8 @@ import time
 
 sim = madrona_simple_example_python.SimpleSimulator(
         gpu_id = 0,
-        num_worlds = 4,
-        num_rectangles_per_world = 5,
+        num_worlds = 64,
+        num_rectangles_per_world = 100,
         bounds_min_x = -5,
         bounds_max_x = 5,
         bounds_min_y = -5,
