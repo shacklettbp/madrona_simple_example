@@ -20,7 +20,7 @@ namespace SimpleExample {
 struct Manager::Impl {
     Config cfg;
     EpisodeManager *episodeMgr;
-    TrainingExecutor mwGPU;
+    MWCudaExecutor mwGPU;
 
     static inline Impl * init(const Config &cfg);
 };
@@ -42,7 +42,7 @@ Manager::Impl * Manager::Impl::init(const Config &cfg)
         };
     }
 
-    TrainingExecutor mwgpu_exec({
+    MWCudaExecutor mwgpu_exec({
         .worldInitPtr = world_inits.data(),
         .numWorldInitBytes = sizeof(WorldInit),
         .numWorldDataBytes = sizeof(Sim),
@@ -80,28 +80,28 @@ MADRONA_EXPORT void Manager::step()
     impl_->mwGPU.run();
 }
 
-MADRONA_EXPORT GPUTensor Manager::resetTensor() const
+MADRONA_EXPORT Tensor Manager::resetTensor() const
 {
     void *dev_ptr = impl_->mwGPU.getExported(0);
 
-    return GPUTensor(dev_ptr, GPUTensor::ElementType::Int32,
+    return Tensor(dev_ptr, Tensor::ElementType::Int32,
                      {impl_->cfg.numWorlds, 1}, impl_->cfg.gpuID);
 }
 
-MADRONA_EXPORT GPUTensor Manager::actionTensor() const
+MADRONA_EXPORT Tensor Manager::actionTensor() const
 {
     void *dev_ptr = impl_->mwGPU.getExported(1);
 
-    return GPUTensor(dev_ptr, GPUTensor::ElementType::Float32,
+    return Tensor(dev_ptr, Tensor::ElementType::Float32,
         {impl_->cfg.numWorlds, impl_->cfg.numAgentsPerWorld, 3},
          impl_->cfg.gpuID);
 }
 
-MADRONA_EXPORT GPUTensor Manager::positionTensor() const
+MADRONA_EXPORT Tensor Manager::positionTensor() const
 {
     void *dev_ptr = impl_->mwGPU.getExported(2);
 
-    return GPUTensor(dev_ptr, GPUTensor::ElementType::Float32,
+    return Tensor(dev_ptr, Tensor::ElementType::Float32,
         {impl_->cfg.numWorlds, impl_->cfg.numAgentsPerWorld, 3},
          impl_->cfg.gpuID);
 }

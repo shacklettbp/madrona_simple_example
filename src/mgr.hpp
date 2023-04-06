@@ -20,9 +20,9 @@ public:
 
     MADRONA_IMPORT void step();
 
-    MADRONA_IMPORT madrona::py::GPUTensor resetTensor() const;
-    MADRONA_IMPORT madrona::py::GPUTensor actionTensor() const;
-    MADRONA_IMPORT madrona::py::GPUTensor positionTensor() const;
+    MADRONA_IMPORT madrona::py::Tensor resetTensor() const;
+    MADRONA_IMPORT madrona::py::Tensor actionTensor() const;
+    MADRONA_IMPORT madrona::py::Tensor positionTensor() const;
 
 private:
     struct Impl;
