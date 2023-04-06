@@ -3,14 +3,19 @@
 
 using namespace madrona;
 using namespace madrona::math;
+using namespace madrona::phys;
 
 namespace SimpleExample {
 
 constexpr inline float deltaT = 1.f / 30.f;
 
+constexpr inline CountT numPhysicsSubsteps = 4;
+
 void Sim::registerTypes(ECSRegistry &registry, const Config &)
 {
     base::registerTypes(registry);
+    RigidBodyPhysicsSystem::registerTypes(registry);
+    render::RenderingSystem::registerTypes(registry);
 
     registry.registerComponent<Action>();
 
@@ -26,6 +31,12 @@ void Sim::registerTypes(ECSRegistry &registry, const Config &)
 
 static void resetWorld(Engine &ctx)
 {
+    if (ctx.data().enableRender) {
+        render::RenderingSystem::reset(ctx);
+    }
+
+    RigidBodyPhysicsSystem::reset(ctx);
+
     // Update the RNG seed for a new episode
     EpisodeManager &episode_mgr = *ctx.data().episodeMgr;
     uint32_t episode_idx =
@@ -45,6 +56,15 @@ static void resetWorld(Engine &ctx)
         };
 
         ctx.getUnsafe<Position>(agent) = pos;
+        ctx.getUnsafe<Rotation>(agent) = Quat { 1, 0, 0, 0 };
+        ctx.getUnsafe<Velocity>(agent) = {
+            Vector3::zero(),
+            Vector3::zero(),
+        };
+        ctx.getUnsafe<ExternalForce>(agent) = Vector3::zero();
+        ctx.getUnsafe<ExternalTorque>(agent) = Vector3::zero();
+        ctx.getUnsafe<broadphase::LeafID>(agent) =
+            RigidBodyPhysicsSystem::registerEntity(ctx, agent, ObjectID { 1 });
     }
 }
 
@@ -67,7 +87,7 @@ inline void actionSystem(Engine &, Action &action, Position &pos)
     action.positionDelta = Vector3 {0, 0, 0};
 }
 
-void Sim::setupTasks(TaskGraph::Builder &builder, const Config &)
+void Sim::setupTasks(TaskGraph::Builder &builder, const Config &cfg)
 {
     auto reset_sys =
         builder.addToGraph<ParallelForNode<Engine, resetSystem, WorldReset>>({});
@@ -75,24 +95,44 @@ void Sim::setupTasks(TaskGraph::Builder &builder, const Config &)
     auto action_sys = builder.addToGraph<ParallelForNode<Engine, actionSystem,
         Action, Position>>({reset_sys});
 
-    (void)action_sys;
+    auto bvh_sys = RigidBodyPhysicsSystem::setupBroadphaseTasks(
+        builder, {action_sys});
 
-    printf("Setup done\n");
+    auto substep_sys = RigidBodyPhysicsSystem::setupSubstepTasks(
+        builder, {bvh_sys}, numPhysicsSubsteps);
+
+    auto phys_cleanup_sys = RigidBodyPhysicsSystem::setupCleanupTasks(
+        builder, {substep_sys});
+
+    auto sim_done = phys_cleanup_sys;
+    if (cfg.enableRender) {
+        sim_done = render::RenderingSystem::setupTasks(builder, {sim_done});
+    }
+
+#ifdef MADRONA_GPU_MODE
+    auto recycle_sys = builder.addToGraph<RecycleEntitiesNode>({sim_done});
+    (void)recycle_sys;
+#endif
 }
 
 
-Sim::Sim(Engine &ctx, const Config &, const WorldInit &init)
+Sim::Sim(Engine &ctx, const Config &cfg, const WorldInit &init)
     : WorldBase(ctx),
       episodeMgr(init.episodeMgr)
 {
     // Make a buffer that will last the duration of simulation for storing
     // agent entity IDs
     agents = (Entity *)rawAlloc(sizeof(Entity) * init.numAgents);
+    numAgents = init.numAgents;
+    enableRender = cfg.enableRender;
 
     for (int32_t i = 0; i < init.numAgents; i++) {
-        agents[i] = ctx.makeEntityNow<Agent>();
+        Entity agent = agents[i] = ctx.makeEntityNow<Agent>();
 
-        ctx.getUnsafe<Action>(agents[i]).positionDelta = Vector3 {0, 0, 0};
+        ctx.getUnsafe<Action>(agent).positionDelta = Vector3 {0, 0, 0};
+        ctx.getUnsafe<Scale>(agent) = Diag3x3 { 1, 1, 1 };
+        ctx.getUnsafe<ObjectID>(agent) = ObjectID { 1 };
+        ctx.getUnsafe<ResponseType>(agent) = ResponseType::Dynamic;
     }
 
     // Initial reset

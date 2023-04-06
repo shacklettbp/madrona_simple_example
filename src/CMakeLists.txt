@@ -11,6 +11,7 @@ target_link_libraries(simple_example_cpu_impl
         madrona_mw_core
     PRIVATE
         madrona_common
+        madrona_mw_physics
 )
 
 add_library(simple_example_mgr SHARED
@@ -23,6 +24,7 @@ target_link_libraries(simple_example_mgr PRIVATE
     madrona_importer
     simple_example_cpu_impl
     madrona_mw_cpu
+    madrona_physics_assets
 )
 
 if (TARGET madrona_mw_gpu)

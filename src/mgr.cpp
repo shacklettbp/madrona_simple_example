@@ -4,6 +4,7 @@
 #include <madrona/utils.hpp>
 #include <madrona/importer.hpp>
 #include <madrona/mw_cpu.hpp>
+#include <madrona/physics_assets.hpp>
 
 #ifdef MADRONA_CUDA_SUPPORT
 #include <madrona/mw_gpu.hpp>
@@ -18,15 +19,20 @@
 
 using namespace madrona;
 using namespace madrona::py;
+using namespace madrona::math;
+using namespace madrona::phys;
 
 namespace SimpleExample {
 
 struct Manager::Impl {
     Config cfg;
+    PhysicsLoader physicsLoader;
     EpisodeManager *episodeMgr;
 
-    inline Impl(const Config &c, EpisodeManager *ep_mgr)
+    inline Impl(const Config &c, PhysicsLoader &&physics_loader,
+                EpisodeManager *ep_mgr)
         : cfg(c),
+          physicsLoader(std::move(physics_loader)),
           episodeMgr(ep_mgr)
     {}
 
@@ -45,10 +51,11 @@ struct Manager::CPUImpl final : Manager::Impl {
 
     inline CPUImpl(const Manager::Config &mgr_cfg,
                    const Sim::Config &sim_cfg,
+                   PhysicsLoader &&physics_loader,
                    EpisodeManager *episode_mgr,
                    WorldInit *world_inits,
                    uint32_t num_exported_buffers)
-        : Impl(mgr_cfg, episode_mgr),
+        : Impl(mgr_cfg, std::move(physics_loader), episode_mgr),
           cpuExec({
                   .numWorlds = mgr_cfg.numWorlds,
                   .renderWidth = 0,
@@ -79,10 +86,11 @@ struct Manager::GPUImpl final : Manager::Impl {
 
     inline GPUImpl(const Manager::Config &mgr_cfg,
                    const Sim::Config &sim_cfg,
+                   PhysicsLoader &&physics_loader,
                    EpisodeManager *episode_mgr,
                    WorldInit *world_inits,
                    uint32_t num_exported_buffers)
-        : Impl(mgr_cfg, episode_mgr),
+        : Impl(mgr_cfg, std::move(physics_loader), episode_mgr),
           gpuExec({
                   .worldInitPtr = world_inits,
                   .numWorldInitBytes = sizeof(WorldInit),
@@ -120,6 +128,56 @@ struct Manager::GPUImpl final : Manager::Impl {
 };
 #endif
 
+static void loadPhysicsObjects(PhysicsLoader &loader)
+{
+    DynArray<RigidBodyMetadata> metadatas(0);
+    DynArray<AABB> aabbs(0);
+    DynArray<CollisionPrimitive> prims(0);
+    
+    { // Plane: (0)
+        metadatas.push_back({
+            .invInertiaTensor = { 0.f, 0.f, 0.f },
+            .invMass = 0.f,
+            .muS = 0.5f,
+            .muD = 0.5f,
+        });
+
+        aabbs.push_back({
+            .pMin = { -FLT_MAX, -FLT_MAX, -FLT_MAX },
+            .pMax = { FLT_MAX, FLT_MAX, 0 },
+        });
+
+        prims.push_back({
+            .type = CollisionPrimitive::Type::Plane,
+            .plane = {},
+        });
+    }
+
+    { // Cube: (1)
+        metadatas.push_back({
+            .invInertiaTensor = { 1.5f, 1.5f, 1.5f },
+            .invMass = 1.f,
+            .muS = 0.5f,
+            .muD = 0.5f,
+        });
+
+        PhysicsLoader::LoadedHull cube_hull = loader.loadHullFromDisk(
+            (std::filesystem::path(DATA_DIR) / "cube_collision.obj").c_str());
+
+        aabbs.push_back(cube_hull.aabb);
+
+        prims.push_back({
+            .type = CollisionPrimitive::Type::Hull,
+            .hull = {
+                .halfEdgeMesh = cube_hull.collisionMesh,
+            },
+        });
+    } 
+
+    loader.loadObjects(metadatas.data(), aabbs.data(),
+                       prims.data(), metadatas.size());
+}
+
 static HeapArray<WorldInit> setupWorldInitData(int64_t num_worlds,
                                                int64_t num_agents_per_world,
                                                EpisodeManager *episode_mgr)
@@ -147,8 +205,11 @@ Manager::Impl * Manager::Impl::init(const Config &cfg)
         HeapArray<WorldInit> world_inits = setupWorldInitData(cfg.numWorlds,
             cfg.numAgentsPerWorld, episode_mgr);
 
-        return new CPUImpl(cfg, {}, episode_mgr, world_inits.data(),
-                       num_exported_buffers);
+        PhysicsLoader phys_loader(PhysicsLoader::StorageType::CPU, 2);
+        loadPhysicsObjects(phys_loader);
+
+        return new CPUImpl(cfg, { false }, std::move(phys_loader), episode_mgr,
+                           world_inits.data(), num_exported_buffers);
     } break;
     case ExecMode::CUDA: {
 #ifndef MADRONA_CUDA_SUPPORT
@@ -161,9 +222,12 @@ Manager::Impl * Manager::Impl::init(const Config &cfg)
 
         HeapArray<WorldInit> world_inits = setupWorldInitData(cfg.numWorlds,
             cfg.numAgentsPerWorld, episode_mgr);
+        
+        PhysicsLoader phys_loader(PhysicsLoader::StorageType::CUDA, 2);
+        loadPhysicsObjects(phys_loader);
 
-        return new GPUImpl(cfg, {}, episode_mgr, world_inits.data(),
-                           num_exported_buffers);
+        return new GPUImpl(cfg, { false }, std::move(phys_loader), episode_mgr,
+                           world_inits.data(), num_exported_buffers);
 #endif
     } break;
     default: return nullptr;
