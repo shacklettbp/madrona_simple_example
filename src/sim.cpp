@@ -8,7 +8,7 @@ namespace SimpleExample {
 
 constexpr inline float deltaT = 1.f / 30.f;
 
-void Sim::registerTypes(ECSRegistry &registry)
+void Sim::registerTypes(ECSRegistry &registry, const Config &)
 {
     base::registerTypes(registry);
 
@@ -67,13 +67,13 @@ inline void actionSystem(Engine &, Action &action, Position &pos)
     action.positionDelta = Vector3 {0, 0, 0};
 }
 
-void Sim::setupTasks(TaskGraph::Builder &builder)
+void Sim::setupTasks(TaskGraph::Builder &builder, const Config &cfg)
 {
     auto reset_sys =
-        builder.parallelForNode<Engine, resetSystem, WorldReset>({});
+        builder.addToGraph<ParallelForNode<Engine, resetSystem, WorldReset>>({});
 
-    auto action_sys = builder.parallelForNode<Engine, actionSystem,
-        Action, Position>({reset_sys});
+    auto action_sys = builder.addToGraph<ParallelForNode<Engine, actionSystem,
+        Action, Position>>({reset_sys});
 
     (void)action_sys;
 
@@ -81,7 +81,7 @@ void Sim::setupTasks(TaskGraph::Builder &builder)
 }
 
 
-Sim::Sim(Engine &ctx, const WorldInit &init)
+Sim::Sim(Engine &ctx, const Config &, const WorldInit &init)
     : WorldBase(ctx),
       episodeMgr(init.episodeMgr)
 {
@@ -100,6 +100,6 @@ Sim::Sim(Engine &ctx, const WorldInit &init)
     ctx.getSingleton<WorldReset>().resetNow = false;
 }
 
-MADRONA_BUILD_MWGPU_ENTRY(Engine, Sim, WorldInit);
+MADRONA_BUILD_MWGPU_ENTRY(Engine, Sim, Config, WorldInit);
 
 }

@@ -17,6 +17,8 @@ using madrona::base::Rotation;
 
 class Engine;
 
+struct Config {};
+
 struct WorldReset {
     int32_t resetNow;
 };
@@ -31,11 +33,13 @@ struct Agent : public madrona::Archetype<
 > {};
 
 struct Sim : public madrona::WorldBase {
-    static void registerTypes(madrona::ECSRegistry &registry);
+    static void registerTypes(madrona::ECSRegistry &registry,
+                              const Config &cfg);
 
-    static void setupTasks(madrona::TaskGraph::Builder &builder);
+    static void setupTasks(madrona::TaskGraph::Builder &builder,
+                           const Config &cfg);
 
-    Sim(Engine &ctx, const WorldInit &init);
+    Sim(Engine &ctx, const Config &cfg, const WorldInit &init);
 
     EpisodeManager *episodeMgr;
     RNG rng;
