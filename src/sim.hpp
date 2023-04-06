@@ -17,8 +17,6 @@ using madrona::base::Rotation;
 
 class Engine;
 
-struct Config {};
-
 struct WorldReset {
     int32_t resetNow;
 };
@@ -33,6 +31,8 @@ struct Agent : public madrona::Archetype<
 > {};
 
 struct Sim : public madrona::WorldBase {
+    struct Config {};
+
     static void registerTypes(madrona::ECSRegistry &registry,
                               const Config &cfg);
 

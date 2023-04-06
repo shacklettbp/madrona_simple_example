@@ -67,7 +67,7 @@ inline void actionSystem(Engine &, Action &action, Position &pos)
     action.positionDelta = Vector3 {0, 0, 0};
 }
 
-void Sim::setupTasks(TaskGraph::Builder &builder, const Config &cfg)
+void Sim::setupTasks(TaskGraph::Builder &builder, const Config &)
 {
     auto reset_sys =
         builder.addToGraph<ParallelForNode<Engine, resetSystem, WorldReset>>({});
@@ -100,6 +100,6 @@ Sim::Sim(Engine &ctx, const Config &, const WorldInit &init)
     ctx.getSingleton<WorldReset>().resetNow = false;
 }
 
-MADRONA_BUILD_MWGPU_ENTRY(Engine, Sim, Config, WorldInit);
+MADRONA_BUILD_MWGPU_ENTRY(Engine, Sim, Sim::Config, WorldInit);
 
 }

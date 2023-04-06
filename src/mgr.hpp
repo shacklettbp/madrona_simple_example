@@ -8,11 +8,16 @@ namespace SimpleExample {
 
 class Manager {
 public:
+    enum class ExecMode {
+        CPU,
+        CUDA,
+    };
+
     struct Config {
+        ExecMode execMode;
         int gpuID;
         uint32_t numWorlds;
         uint32_t numAgentsPerWorld;
-        bool debugCompile;
     };
 
     MADRONA_IMPORT Manager(const Config &cfg);
@@ -26,6 +31,8 @@ public:
 
 private:
     struct Impl;
+    struct CPUImpl;
+    struct GPUImpl;
 
     std::unique_ptr<Impl> impl_;
 };
