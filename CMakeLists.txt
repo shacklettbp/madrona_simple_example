@@ -3,8 +3,6 @@ cmake_policy(VERSION 3.18)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
     "${CMAKE_CURRENT_SOURCE_DIR}/external/madrona/cmake")
 
-include(build_type)
-
 project(SimpleExample LANGUAGES C CXX)
 
 include(setup)
