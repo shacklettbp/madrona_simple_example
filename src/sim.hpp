@@ -29,10 +29,30 @@ struct WorldReset {
     int32_t resetNow;
 };
 
-struct Action {
-    madrona::math::Vector3 positionDelta; // Continuous action
+enum class MoveAction : int32_t {
+    Wait,
+    Forward,
+    Left,
+    Right,
 };
 
+// A pure physics obstacle with no other components
+struct Obstacle : public madrona::Archetype<
+    Position,
+    Rotation,
+    Scale,
+    Velocity,
+    ObjectID,
+    ResponseType,
+    madrona::phys::solver::SubstepPrevState,
+    madrona::phys::solver::PreSolvePositional,
+    madrona::phys::solver::PreSolveVelocity,
+    ExternalForce,
+    ExternalTorque,
+    madrona::phys::broadphase::LeafID
+> {};
+
+// Same as Obstacle but with an additional action and camera components
 struct Agent : public madrona::Archetype<
     Position,
     Rotation,
@@ -46,7 +66,8 @@ struct Agent : public madrona::Archetype<
     ExternalForce,
     ExternalTorque,
     madrona::phys::broadphase::LeafID,
-    Action
+    MoveAction,
+    madrona::render::ViewSettings
 > {};
 
 struct Sim : public madrona::WorldBase {
@@ -65,8 +86,11 @@ struct Sim : public madrona::WorldBase {
     EpisodeManager *episodeMgr;
     RNG rng;
 
-    madrona::Entity *agents;
-    int32_t numAgents;
+    madrona::Entity agent;
+    madrona::Entity plane;
+
+    madrona::Entity *obstacles;
+    int32_t numObstacles;
 
     bool enableRender;
 };

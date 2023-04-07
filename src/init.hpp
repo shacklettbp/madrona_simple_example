@@ -1,5 +1,7 @@
 #pragma once
 
+#include <madrona/physics.hpp>
+
 namespace SimpleExample {
 
 struct EpisodeManager {
@@ -8,7 +10,8 @@ struct EpisodeManager {
 
 struct WorldInit {
     EpisodeManager *episodeMgr;
-    int32_t numAgents;
+    madrona::phys::ObjectManager *rigidBodyObjMgr;
+    int32_t numObstacles;
 };
 
 }

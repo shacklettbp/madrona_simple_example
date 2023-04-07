@@ -42,6 +42,9 @@ struct Manager::Impl {
     virtual Tensor exportTensor(CountT slot, Tensor::ElementType type,
                                 Span<const int64_t> dims) = 0;
 
+    virtual Tensor depthTensor() = 0;
+    virtual Tensor rgbTensor() = 0;
+
     static inline Impl * init(const Config &cfg);
 };
 
@@ -58,10 +61,16 @@ struct Manager::CPUImpl final : Manager::Impl {
         : Impl(mgr_cfg, std::move(physics_loader), episode_mgr),
           cpuExec({
                   .numWorlds = mgr_cfg.numWorlds,
-                  .renderWidth = 0,
-                  .renderHeight = 0,
+                  .maxViewsPerWorld = 1,
+                  .maxInstancesPerWorld = 1000,
+                  .renderWidth = mgr_cfg.renderWidth,
+                  .renderHeight = mgr_cfg.renderHeight,
+                  .maxObjects = 2,
                   .numExportedBuffers = num_exported_buffers,
-                  .cameraMode = render::CameraMode::None,
+                  .cameraMode = mgr_cfg.enableRender ?
+                      render::CameraMode::Perspective :
+                      render::CameraMode::None,
+                  .renderGPUID = mgr_cfg.gpuID,
               }, sim_cfg, world_inits)
     {}
 
@@ -77,6 +86,32 @@ struct Manager::CPUImpl final : Manager::Impl {
     {
         void *dev_ptr = cpuExec.getExported(slot);
         return Tensor(dev_ptr, type, dims, Optional<int>::none());
+    }
+
+    virtual Tensor depthTensor() final
+    {
+        return Tensor(
+            cpuExec.depthObservations(), Tensor::ElementType::Float32,
+            { cfg.numWorlds, cfg.renderHeight, cfg.renderWidth, 1 },
+#ifdef MADRONA_LINUX
+            cfg.gpuID
+#else
+            Optional<int>::none()
+#endif
+        );
+    }
+
+    virtual Tensor rgbTensor() final
+    {
+        return Tensor(
+            cpuExec.rgbObservations(), Tensor::ElementType::UInt8,
+            { cfg.numWorlds, cfg.renderHeight, cfg.renderWidth, 4 },
+#ifdef MADRONA_LINUX
+            cfg.gpuID
+#else
+            Optional<int>::none()
+#endif
+        );
     }
 };
 
@@ -99,11 +134,14 @@ struct Manager::GPUImpl final : Manager::Impl {
                   .numWorldDataBytes = sizeof(Sim),
                   .worldDataAlignment = alignof(Sim),
                   .numWorlds = mgr_cfg.numWorlds,
+                  .maxViewsPerWorld = 1,
                   .numExportedBuffers = num_exported_buffers, 
                   .gpuID = (uint32_t)mgr_cfg.gpuID,
-                  .cameraMode = render::CameraMode::None,
-                  .renderWidth = 0,
-                  .renderHeight = 0,
+                  .cameraMode = mgr_cfg.enableRender ?
+                      render::CameraMode::Perspective :
+                      render::CameraMode::None,
+                  .renderWidth = mgr_cfg.renderWidth,
+                  .renderHeight = mgr_cfg.renderHeight,
               }, {
                   "",
                   { SIMPLE_SRC_LIST },
@@ -124,6 +162,22 @@ struct Manager::GPUImpl final : Manager::Impl {
     {
         void *dev_ptr = gpuExec.getExported(slot);
         return Tensor(dev_ptr, type, dims, cfg.gpuID);
+    }
+
+    virtual Tensor depthTensor() final
+    {
+        return Tensor(
+            gpuExec.depthObservations(), Tensor::ElementType::Float32,
+            { cfg.numWorlds, cfg.renderHeight, cfg.renderWidth, 1 },
+            cfg.gpuID);
+    }
+
+    virtual Tensor rgbTensor() final
+    {
+        return Tensor(
+            gpuExec.rgbObservations(), Tensor::ElementType::UInt8,
+            { cfg.numWorlds, cfg.renderHeight, cfg.renderWidth, 4 },
+            cfg.gpuID);
     }
 };
 #endif
@@ -179,7 +233,8 @@ static void loadPhysicsObjects(PhysicsLoader &loader)
 }
 
 static HeapArray<WorldInit> setupWorldInitData(int64_t num_worlds,
-                                               int64_t num_agents_per_world,
+                                               int64_t num_obstacles,
+                                               ObjectManager *phys_obj_mgr,
                                                EpisodeManager *episode_mgr)
 {
     HeapArray<WorldInit> world_inits(num_worlds);
@@ -187,29 +242,78 @@ static HeapArray<WorldInit> setupWorldInitData(int64_t num_worlds,
     for (int64_t i = 0; i < num_worlds; i++) {
         world_inits[i] = WorldInit {
             episode_mgr,
-            int32_t(num_agents_per_world),
+            phys_obj_mgr,
+            int32_t(num_obstacles),
         };
     }
 
     return world_inits;
 }
 
-Manager::Impl * Manager::Impl::init(const Config &cfg)
+Manager::Impl * Manager::Impl::init(const Config &mgr_cfg)
 {
+    // NEED to increase this if exporting more tensors from the simulator
     const int64_t num_exported_buffers = 3;
 
-    switch (cfg.execMode) {
+    // Load renderer meshes
+    DynArray<imp::ImportedObject> imported_renderer_objs(0);
+
+    {
+        auto plane_obj = imp::ImportedObject::importObject(
+            (std::filesystem::path(DATA_DIR) / "plane.obj").c_str());
+
+        if (!plane_obj.has_value()) {
+            FATAL("Failed to load plane render mesh");
+        }
+
+        imported_renderer_objs.emplace_back(std::move(*plane_obj));
+    }
+
+    {
+        auto cube_obj = imp::ImportedObject::importObject(
+            (std::filesystem::path(DATA_DIR) / "cube_render.obj").c_str());
+
+        if (!cube_obj.has_value()) {
+            FATAL("Failed to load plane cube mesh");
+        }
+
+        imported_renderer_objs.emplace_back(std::move(*cube_obj));
+    }
+    
+    HeapArray<imp::SourceObject> renderer_objs(
+        imported_renderer_objs.size());
+
+    for (CountT i = 0; i < imported_renderer_objs.size(); i++) {
+        renderer_objs[i] = imp::SourceObject {
+            imported_renderer_objs[i].meshes,
+        };
+    }
+
+    Sim::Config sim_cfg {
+        mgr_cfg.enableRender,
+    };
+
+    switch (mgr_cfg.execMode) {
     case ExecMode::CPU: {
         EpisodeManager *episode_mgr = new EpisodeManager { 0 };
-
-        HeapArray<WorldInit> world_inits = setupWorldInitData(cfg.numWorlds,
-            cfg.numAgentsPerWorld, episode_mgr);
 
         PhysicsLoader phys_loader(PhysicsLoader::StorageType::CPU, 2);
         loadPhysicsObjects(phys_loader);
 
-        return new CPUImpl(cfg, { false }, std::move(phys_loader), episode_mgr,
-                           world_inits.data(), num_exported_buffers);
+        ObjectManager *phys_obj_mgr = &phys_loader.getObjectManager();
+
+        HeapArray<WorldInit> world_inits = setupWorldInitData(
+            mgr_cfg.numWorlds, mgr_cfg.numObstacles,
+            phys_obj_mgr, episode_mgr);
+
+        auto *impl = new CPUImpl(mgr_cfg, sim_cfg, std::move(phys_loader),
+            episode_mgr, world_inits.data(), num_exported_buffers);
+
+        if (mgr_cfg.enableRender) {
+            impl->cpuExec.loadObjects(renderer_objs);
+        }
+
+        return impl;
     } break;
     case ExecMode::CUDA: {
 #ifndef MADRONA_CUDA_SUPPORT
@@ -220,14 +324,23 @@ Manager::Impl * Manager::Impl::init(const Config &cfg)
         // Set the current episode count to 0
         REQ_CUDA(cudaMemset(episode_mgr, 0, sizeof(EpisodeManager)));
 
-        HeapArray<WorldInit> world_inits = setupWorldInitData(cfg.numWorlds,
-            cfg.numAgentsPerWorld, episode_mgr);
-        
         PhysicsLoader phys_loader(PhysicsLoader::StorageType::CUDA, 2);
         loadPhysicsObjects(phys_loader);
 
-        return new GPUImpl(cfg, { false }, std::move(phys_loader), episode_mgr,
-                           world_inits.data(), num_exported_buffers);
+        ObjectManager *phys_obj_mgr = &phys_loader.getObjectManager();
+
+        HeapArray<WorldInit> world_inits = setupWorldInitData(
+            mgr_cfg.numWorlds, mgr_cfg.numObstacles,
+            phys_obj_mgr, episode_mgr);
+        
+         auto *impl = new GPUImpl(mgr_cfg, sim_cfg, std::move(phys_loader),
+            episode_mgr, world_inits.data(), num_exported_buffers);
+
+        if (mgr_cfg.enableRender) {
+            impl->gpuExec.loadObjects(renderer_objs);
+        }
+
+        return impl;
 #endif
     } break;
     default: return nullptr;
@@ -253,14 +366,24 @@ MADRONA_EXPORT Tensor Manager::resetTensor() const
 
 MADRONA_EXPORT Tensor Manager::actionTensor() const
 {
-    return impl_->exportTensor(1, Tensor::ElementType::Float32,
-        {impl_->cfg.numWorlds, impl_->cfg.numAgentsPerWorld, 3});
+    return impl_->exportTensor(1, Tensor::ElementType::Int32,
+        {impl_->cfg.numWorlds, 1});
 }
 
 MADRONA_EXPORT Tensor Manager::positionTensor() const
 {
     return impl_->exportTensor(2, Tensor::ElementType::Float32,
-        {impl_->cfg.numWorlds, impl_->cfg.numAgentsPerWorld, 3});
+        {impl_->cfg.numWorlds, 3});
+}
+
+MADRONA_EXPORT Tensor Manager::depthTensor() const
+{
+    return impl_->depthTensor();
+}
+
+MADRONA_EXPORT Tensor Manager::rgbTensor() const
+{
+    return impl_->rgbTensor();
 }
 
 }

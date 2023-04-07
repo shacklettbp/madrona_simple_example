@@ -23,8 +23,11 @@ else:
 sim = madrona_simple_example_python.SimpleSimulator(
         exec_mode = exec_mode,
         gpu_id = 0,
-        num_worlds = 16,
-        num_agents_per_world = 5,
+        num_worlds = 1,
+        num_obstacles = 5,
+        enable_render = True,
+        render_width = 1536,
+        render_height = 1024,
 )
 
 actions = sim.action_tensor().to_torch()
@@ -34,8 +37,13 @@ print(actions.shape, actions.dtype)
 print(positions.shape, actions.dtype)
 print(resets.shape, resets.dtype)
 
+num_steps = 0
 while True:
-    actions += torch.randn_like(positions)
+
+    # Write the move forward action
+    actions[..., 0] = 1
+
+    print(actions)
 
     sim.step()
 
