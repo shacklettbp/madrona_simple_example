@@ -23,7 +23,7 @@ else:
 sim = madrona_simple_example_python.SimpleSimulator(
         exec_mode = exec_mode,
         gpu_id = 0,
-        num_worlds = 1,
+        num_worlds = 16,
         num_obstacles = 5,
         enable_render = True,
         render_width = 1536,
