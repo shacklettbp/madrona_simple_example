@@ -53,6 +53,8 @@ NB_MODULE(madrona_simple_example_python, m) {
         .def("reset_tensor", &Manager::resetTensor)
         .def("action_tensor", &Manager::actionTensor)
         .def("position_tensor", &Manager::positionTensor)
+        .def("depth_tensor", &Manager::depthTensor)
+        .def("rgb_tensor", &Manager::rgbTensor)
     ;
 }
 
