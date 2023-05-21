@@ -6,7 +6,6 @@ project(SimpleExample LANGUAGES C CXX)
 
 include(setup)
 set(MADRONA_REQUIRE_PYTHON ON)
-set(MADRONA_REQUIRE_CUDA ON)
 include(dependencies)
 
 add_subdirectory(external)
