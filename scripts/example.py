@@ -41,7 +41,7 @@ num_steps = 0
 while True:
 
     # Write the move forward action
-    actions[..., 0] = 1
+    actions[..., 0] = 5
 
     print(actions)
 
@@ -49,4 +49,4 @@ while True:
 
     print(positions)
 
-    time.sleep(1)
+    time.sleep(0.1)

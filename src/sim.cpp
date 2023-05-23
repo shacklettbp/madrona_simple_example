@@ -109,7 +109,8 @@ inline void resetSystem(Engine &ctx, WorldReset &reset)
 inline void actionSystem(Engine &,
                          MoveAction action,
                          const Rotation &agent_rot,
-                         ExternalForce &agent_force)
+                         ExternalForce &agent_force,
+                         ExternalTorque &agent_torque)
 {
     // Translate from discrete actions to forces
     switch (action) {
@@ -124,6 +125,12 @@ inline void actionSystem(Engine &,
     } break;
     case MoveAction::Right: {
         agent_force += agent_rot.rotateVec(math::right);
+    } break;
+    case MoveAction::TurnLeft: {
+        agent_torque -= agent_rot.rotateVec(math::up);
+    } break;
+    case MoveAction::TurnRight: {
+        agent_torque += agent_rot.rotateVec(math::up);
     } break;
     default: __builtin_unreachable();
     }
@@ -162,7 +169,7 @@ void Sim::setupTasks(TaskGraph::Builder &builder, const Config &cfg)
 #endif
 
     auto action_sys = builder.addToGraph<ParallelForNode<Engine, actionSystem,
-        MoveAction, Rotation, ExternalForce>>({post_reset});
+        MoveAction, Rotation, ExternalForce, ExternalTorque>>({post_reset});
 
     auto bvh_sys = RigidBodyPhysicsSystem::setupBroadphaseTasks(
         builder, {action_sys});
@@ -174,6 +181,7 @@ void Sim::setupTasks(TaskGraph::Builder &builder, const Config &cfg)
         builder, {substep_sys});
 
     auto sim_done = phys_cleanup_sys;
+
     if (cfg.enableRender) {
         sim_done = render::RenderingSystem::setupTasks(builder, {sim_done});
     }

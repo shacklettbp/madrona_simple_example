@@ -30,10 +30,12 @@ struct WorldReset {
 };
 
 enum class MoveAction : int32_t {
-    Wait,
-    Forward,
-    Left,
-    Right,
+    Wait = 0,
+    Forward = 1,
+    Left = 2,
+    Right = 3,
+    TurnLeft = 4,
+    TurnRight = 5,
 };
 
 // A pure physics obstacle with no other components
