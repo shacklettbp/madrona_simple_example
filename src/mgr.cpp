@@ -184,52 +184,85 @@ struct Manager::GPUImpl final : Manager::Impl {
 
 static void loadPhysicsObjects(PhysicsLoader &loader)
 {
-    DynArray<RigidBodyMetadata> metadatas(0);
-    DynArray<AABB> aabbs(0);
-    DynArray<CollisionPrimitive> prims(0);
-    
-    { // Plane: (0)
-        metadatas.push_back({
-            .invInertiaTensor = { 0.f, 0.f, 0.f },
-            .invMass = 0.f,
+    using SourceCollisionObject = PhysicsLoader::SourceCollisionObject;
+    using SourceCollisionPrimitive = PhysicsLoader::SourceCollisionPrimitive;
+
+    SourceCollisionPrimitive plane_prim {
+        .type = CollisionPrimitive::Type::Plane,
+    };
+
+    char import_err_buffer[4096];
+    auto imported_hulls = imp::ImportedAssets::importFromDisk({
+        (std::filesystem::path(DATA_DIR) / "cube_collision.obj").c_str(),
+    }, import_err_buffer, true);
+
+    if (!imported_hulls.has_value()) {
+        FATAL("%s", import_err_buffer);
+    }
+
+    DynArray<DynArray<SourceCollisionPrimitive>> prim_arrays(0);
+    HeapArray<SourceCollisionObject> src_objs(
+        imported_hulls->objects.size() + 1);
+
+    // Plane (0)
+    src_objs[0] = {
+        .prims = Span<const SourceCollisionPrimitive>(&plane_prim, 1),
+        .invMass = 0.f,
+        .friction = {
             .muS = 0.5f,
             .muD = 0.5f,
-        });
+        },
+    };
 
-        aabbs.push_back({
-            .pMin = { -FLT_MAX, -FLT_MAX, -FLT_MAX },
-            .pMax = { FLT_MAX, FLT_MAX, 0 },
-        });
+    auto setupHull = [&](CountT obj_idx, float inv_mass,
+                         RigidBodyFrictionData friction) {
+        auto meshes = imported_hulls->objects[obj_idx].meshes;
+        DynArray<SourceCollisionPrimitive> prims(meshes.size());
 
-        prims.push_back({
-            .type = CollisionPrimitive::Type::Plane,
-            .plane = {},
+        for (const imp::SourceMesh &mesh : meshes) {
+            prims.push_back({
+                .type = CollisionPrimitive::Type::Hull,
+                .hull = {
+                    .mesh = &mesh,
+                },
+            });
+        }
+
+        prim_arrays.emplace_back(std::move(prims));
+
+        return SourceCollisionObject {
+            .prims = Span<const SourceCollisionPrimitive>(prim_arrays.back()),
+            .invMass = inv_mass,
+            .friction = friction,
+        };
+    };
+
+    { // Cube (1)
+        src_objs[1] = setupHull(0, 1.f, {
+            .muS = 0.5f,
+            .muD = 0.5f,
         });
     }
 
-    { // Cube: (1)
-        metadatas.push_back({
-            .invInertiaTensor = { 1.5f, 1.5f, 1.5f },
-            .invMass = 1.f,
-            .muS = 0.5f,
-            .muD = 0.5f,
-        });
+    auto phys_objs = loader.importRigidBodyData(
+        src_objs.data(), src_objs.size(), true);
 
-        PhysicsLoader::LoadedHull cube_hull = loader.loadHullFromDisk(
-            (std::filesystem::path(DATA_DIR) / "cube_collision.obj").c_str());
-
-        aabbs.push_back(cube_hull.aabb);
-
-        prims.push_back({
-            .type = CollisionPrimitive::Type::Hull,
-            .hull = {
-                .halfEdgeMesh = cube_hull.collisionMesh,
-            },
-        });
-    } 
-
-    loader.loadObjects(metadatas.data(), aabbs.data(),
-                       prims.data(), metadatas.size());
+    loader.loadObjects(
+        phys_objs.metadatas.data(),
+        phys_objs.objectAABBs.data(),
+        phys_objs.primOffsets.data(),
+        phys_objs.primCounts.data(),
+        phys_objs.metadatas.size(),
+        phys_objs.collisionPrimitives.data(),
+        phys_objs.primitiveAABBs.data(),
+        phys_objs.collisionPrimitives.size(),
+        phys_objs.hullData.halfEdges.data(),
+        phys_objs.hullData.halfEdges.size(),
+        phys_objs.hullData.faceBaseHEs.data(),
+        phys_objs.hullData.facePlanes.data(),
+        phys_objs.hullData.facePlanes.size(),
+        phys_objs.hullData.positions.data(),
+        phys_objs.hullData.positions.size());
 }
 
 static HeapArray<WorldInit> setupWorldInitData(int64_t num_worlds,
@@ -255,38 +288,14 @@ Manager::Impl * Manager::Impl::init(const Config &mgr_cfg)
     // NEED to increase this if exporting more tensors from the simulator
     const int64_t num_exported_buffers = 3;
 
-    // Load renderer meshes
-    DynArray<imp::ImportedObject> imported_renderer_objs(0);
+     std::array<char, 1024> import_err;
+    auto render_assets = imp::ImportedAssets::importFromDisk({
+        (std::filesystem::path(DATA_DIR) / "plane.obj").c_str(),
+        (std::filesystem::path(DATA_DIR) / "cube_render.obj").c_str(),
+    }, Span<char>(import_err.data(), import_err.size()));
 
-    {
-        auto plane_obj = imp::ImportedObject::importObject(
-            (std::filesystem::path(DATA_DIR) / "plane.obj").c_str());
-
-        if (!plane_obj.has_value()) {
-            FATAL("Failed to load plane render mesh");
-        }
-
-        imported_renderer_objs.emplace_back(std::move(*plane_obj));
-    }
-
-    {
-        auto cube_obj = imp::ImportedObject::importObject(
-            (std::filesystem::path(DATA_DIR) / "cube_render.obj").c_str());
-
-        if (!cube_obj.has_value()) {
-            FATAL("Failed to load plane cube mesh");
-        }
-
-        imported_renderer_objs.emplace_back(std::move(*cube_obj));
-    }
-    
-    HeapArray<imp::SourceObject> renderer_objs(
-        imported_renderer_objs.size());
-
-    for (CountT i = 0; i < imported_renderer_objs.size(); i++) {
-        renderer_objs[i] = imp::SourceObject {
-            imported_renderer_objs[i].meshes,
-        };
+    if (!render_assets.has_value()) {
+        FATAL("Failed to load render assets: %s", import_err);
     }
 
     Sim::Config sim_cfg {
@@ -310,7 +319,7 @@ Manager::Impl * Manager::Impl::init(const Config &mgr_cfg)
             episode_mgr, world_inits.data(), num_exported_buffers);
 
         if (mgr_cfg.enableRender) {
-            impl->cpuExec.loadObjects(renderer_objs);
+            impl->cpuExec.loadObjects(render_assets->objects);
         }
 
         return impl;
@@ -337,7 +346,7 @@ Manager::Impl * Manager::Impl::init(const Config &mgr_cfg)
             episode_mgr, world_inits.data(), num_exported_buffers);
 
         if (mgr_cfg.enableRender) {
-            impl->gpuExec.loadObjects(renderer_objs);
+            impl->gpuExec.loadObjects(render_assets->objects);
         }
 
         return impl;
