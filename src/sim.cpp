@@ -31,10 +31,6 @@ void Sim::registerTypes(ECSRegistry &registry, const Config &)
 
 static void generateWorld(Engine &ctx, CountT num_obstacles)
 {
-    if (ctx.data().enableRender) {
-        render::RenderingSystem::reset(ctx);
-    }
-
     RigidBodyPhysicsSystem::reset(ctx);
 
     // Update the RNG seed for a new episode
@@ -197,6 +193,10 @@ Sim::Sim(Engine &ctx, const Config &cfg, const WorldInit &init)
     : WorldBase(ctx),
       episodeMgr(init.episodeMgr)
 {
+    if (ctx.data().enableRender) {
+        render::RenderingSystem::reset(ctx);
+    }
+
     RigidBodyPhysicsSystem::init(ctx, init.rigidBodyObjMgr, deltaT,
                                  numPhysicsSubsteps, -9.8 * math::up,
                                  init.numObstacles + 2,
