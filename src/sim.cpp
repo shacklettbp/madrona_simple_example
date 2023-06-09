@@ -44,7 +44,7 @@ static void generateWorld(Engine &ctx, CountT num_obstacles)
     float bounds_diff = bounds.y - bounds.x;
 
     for (CountT i = 0; i < num_obstacles; i++) {
-        Entity e = ctx.data().obstacles[i] = ctx.makeEntityNow<Obstacle>();
+        Entity e = ctx.data().obstacles[i] = ctx.makeEntity<Obstacle>();
 
         math::Vector3 pos {
             bounds.x + ctx.data().rng.rand() * bounds_diff,
@@ -52,36 +52,36 @@ static void generateWorld(Engine &ctx, CountT num_obstacles)
             1.f,
         };
 
-        ctx.getUnsafe<Position>(e) = pos;
-        ctx.getUnsafe<Rotation>(e) = Quat { 1, 0, 0, 0 };
-        ctx.getUnsafe<Scale>(e) = Diag3x3 { 1, 1, 1 };
-        ctx.getUnsafe<Velocity>(e) = {
+        ctx.get<Position>(e) = pos;
+        ctx.get<Rotation>(e) = Quat { 1, 0, 0, 0 };
+        ctx.get<Scale>(e) = Diag3x3 { 1, 1, 1 };
+        ctx.get<Velocity>(e) = {
             Vector3::zero(),
             Vector3::zero(),
         };
-        ctx.getUnsafe<ObjectID>(e) = ObjectID { 1 };
-        ctx.getUnsafe<ResponseType>(e) = ResponseType::Dynamic;
-        ctx.getUnsafe<ExternalForce>(e) = Vector3::zero();
-        ctx.getUnsafe<ExternalTorque>(e) = Vector3::zero();
-        ctx.getUnsafe<broadphase::LeafID>(e) =
+        ctx.get<ObjectID>(e) = ObjectID { 1 };
+        ctx.get<ResponseType>(e) = ResponseType::Dynamic;
+        ctx.get<ExternalForce>(e) = Vector3::zero();
+        ctx.get<ExternalTorque>(e) = Vector3::zero();
+        ctx.get<broadphase::LeafID>(e) =
             RigidBodyPhysicsSystem::registerEntity(ctx, e, ObjectID { 1 });
     }
 
-    ctx.getUnsafe<broadphase::LeafID>(ctx.data().plane) =
+    ctx.get<broadphase::LeafID>(ctx.data().plane) =
         RigidBodyPhysicsSystem::registerEntity(ctx, ctx.data().plane,
                                                ObjectID { 0 });
 
     // Reset the position of the agent
     Entity agent = ctx.data().agent;
-    ctx.getUnsafe<Position>(agent) = Vector3 { 0, 0, 1 };
-    ctx.getUnsafe<Rotation>(agent) = Quat { 1, 0, 0, 0 };
-    ctx.getUnsafe<Velocity>(agent) = {
+    ctx.get<Position>(agent) = Vector3 { 0, 0, 1 };
+    ctx.get<Rotation>(agent) = Quat { 1, 0, 0, 0 };
+    ctx.get<Velocity>(agent) = {
         Vector3::zero(),
         Vector3::zero(),
     };
-    ctx.getUnsafe<ExternalForce>(agent) = Vector3::zero();
-    ctx.getUnsafe<ExternalTorque>(agent) = Vector3::zero();
-    ctx.getUnsafe<broadphase::LeafID>(agent) =
+    ctx.get<ExternalForce>(agent) = Vector3::zero();
+    ctx.get<ExternalTorque>(agent) = Vector3::zero();
+    ctx.get<broadphase::LeafID>(agent) =
         RigidBodyPhysicsSystem::registerEntity(ctx, agent, ObjectID { 1 });
 }
 
@@ -96,7 +96,7 @@ inline void resetSystem(Engine &ctx, WorldReset &reset)
 
     // Delete old obstacles
     for (CountT i = 0; i < num_obstacles; i++) {
-        ctx.destroyEntityNow(ctx.data().obstacles[i]);
+        ctx.destroyEntity(ctx.data().obstacles[i]);
     }
 
     generateWorld(ctx, num_obstacles);
@@ -209,25 +209,25 @@ Sim::Sim(Engine &ctx, const Config &cfg, const WorldInit &init)
     numObstacles = init.numObstacles;
     enableRender = cfg.enableRender;
 
-    agent = ctx.makeEntityNow<Agent>();
-    ctx.getUnsafe<MoveAction>(agent) = MoveAction::Wait;
-    ctx.getUnsafe<Scale>(agent) = Diag3x3 { 1, 1, 1 };
-    ctx.getUnsafe<ObjectID>(agent) = ObjectID { 1 };
-    ctx.getUnsafe<ResponseType>(agent) = ResponseType::Dynamic;
-    ctx.getUnsafe<render::ViewSettings>(agent) =
+    agent = ctx.makeEntity<Agent>();
+    ctx.get<MoveAction>(agent) = MoveAction::Wait;
+    ctx.get<Scale>(agent) = Diag3x3 { 1, 1, 1 };
+    ctx.get<ObjectID>(agent) = ObjectID { 1 };
+    ctx.get<ResponseType>(agent) = ResponseType::Dynamic;
+    ctx.get<render::ViewSettings>(agent) =
         render::RenderingSystem::setupView(ctx, 90.f, 0.001f,
                                            math::up * 0.5f, { 0 });
 
     // Create ground plane during initialization
-    plane = ctx.makeEntityNow<Obstacle>();
-    ctx.getUnsafe<Position>(plane) = Vector3::zero();
-    ctx.getUnsafe<Rotation>(plane) = Quat { 1, 0, 0, 0 };
-    ctx.getUnsafe<Scale>(plane) = Diag3x3 { 1, 1, 1 };
-    ctx.getUnsafe<ObjectID>(plane) = ObjectID { 0 };
-    ctx.getUnsafe<ResponseType>(plane) = ResponseType::Static;
+    plane = ctx.makeEntity<Obstacle>();
+    ctx.get<Position>(plane) = Vector3::zero();
+    ctx.get<Rotation>(plane) = Quat { 1, 0, 0, 0 };
+    ctx.get<Scale>(plane) = Diag3x3 { 1, 1, 1 };
+    ctx.get<ObjectID>(plane) = ObjectID { 0 };
+    ctx.get<ResponseType>(plane) = ResponseType::Static;
 
     generateWorld(ctx, numObstacles);
-    ctx.getSingleton<WorldReset>().resetNow = false;
+    ctx.singleton<WorldReset>().resetNow = false;
 }
 
 MADRONA_BUILD_MWGPU_ENTRY(Engine, Sim, Sim::Config, WorldInit);
