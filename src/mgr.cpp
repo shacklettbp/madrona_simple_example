@@ -78,8 +78,10 @@ struct Manager::CPUImpl final : Manager::Impl {
 #ifdef MADRONA_CUDA_SUPPORT
 struct Manager::GPUImpl final : Manager::Impl {
     MWCudaExecutor gpuExec;
+    MWCudaLaunchGraph stepGraph;
 
-    inline GPUImpl(const Manager::Config &mgr_cfg,
+    inline GPUImpl(CUcontext cu_ctx,
+                   const Manager::Config &mgr_cfg,
                    const Sim::Config &sim_cfg,
                    EpisodeManager *episode_mgr,
                    GridState *grid_data,
@@ -93,13 +95,15 @@ struct Manager::GPUImpl final : Manager::Impl {
                   .numWorldDataBytes = sizeof(Sim),
                   .worldDataAlignment = alignof(Sim),
                   .numWorlds = mgr_cfg.numWorlds,
+                  .numTaskGraphs = 1,
                   .numExportedBuffers = (uint32_t)ExportID::NumExports, 
-                  .gpuID = (uint32_t)mgr_cfg.gpuID,
               }, {
                   { SIMPLE_SRC_LIST },
                   { SIMPLE_COMPILE_FLAGS },
                   CompileConfig::OptMode::LTO,
-              })
+              }, cu_ctx),
+          stepGraph(gpuExec.buildLaunchGraph(0))
+          
     {}
 
     inline virtual ~GPUImpl() final {
@@ -107,7 +111,7 @@ struct Manager::GPUImpl final : Manager::Impl {
         REQ_CUDA(cudaFree(gridData));
     }
 
-    inline virtual void run() final { gpuExec.run(); }
+    inline virtual void run() final { gpuExec.run(stepGraph); }
     
     virtual inline Tensor exportTensor(ExportID slot, TensorElementType type,
                                        Span<const int64_t> dims) final
@@ -176,6 +180,8 @@ Manager::Impl * Manager::Impl::init(const Config &cfg,
 #ifndef MADRONA_CUDA_SUPPORT
         FATAL("CUDA support not compiled in!");
 #else
+        CUcontext cu_ctx = MWCudaExecutor::initCUDA(cfg.gpuID);
+
         EpisodeManager *episode_mgr = 
             (EpisodeManager *)cu::allocGPU(sizeof(EpisodeManager));
         // Set the current episode count to 0
@@ -206,7 +212,7 @@ Manager::Impl * Manager::Impl::init(const Config &cfg,
         HeapArray<WorldInit> world_inits = setupWorldInitData(cfg.numWorlds,
             episode_mgr, gpu_grid);
 
-        return new GPUImpl(cfg, sim_cfg, episode_mgr, gpu_grid,
+        return new GPUImpl(cu_ctx, cfg, sim_cfg, episode_mgr, gpu_grid,
                            world_inits.data());
 #endif
     } break;
