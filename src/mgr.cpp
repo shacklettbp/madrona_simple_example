@@ -37,7 +37,7 @@ struct Manager::Impl {
     inline virtual ~Impl() {}
 
     virtual void run() = 0;
-    virtual Tensor exportTensor(ExportID slot, Tensor::ElementType type,
+    virtual Tensor exportTensor(ExportID slot, TensorElementType type,
                                 Span<const int64_t> dims) = 0;
 
     static inline Impl * init(const Config &cfg, const GridState &src_grid);
@@ -56,7 +56,7 @@ struct Manager::CPUImpl final : Manager::Impl {
           cpuExec({
                   .numWorlds = mgr_cfg.numWorlds,
                   .numExportedBuffers = (uint32_t)ExportID::NumExports,
-              }, sim_cfg, world_inits)
+              }, sim_cfg, world_inits, 1)
     {}
 
     inline virtual ~CPUImpl() final {
@@ -67,7 +67,7 @@ struct Manager::CPUImpl final : Manager::Impl {
     inline virtual void run() final { cpuExec.run(); }
     
     inline virtual Tensor exportTensor(ExportID slot,
-                                       Tensor::ElementType type,
+                                       TensorElementType type,
                                        Span<const int64_t> dims) final
     {
         void *dev_ptr = cpuExec.getExported((uint32_t)slot);
@@ -109,7 +109,7 @@ struct Manager::GPUImpl final : Manager::Impl {
 
     inline virtual void run() final { gpuExec.run(); }
     
-    virtual inline Tensor exportTensor(ExportID slot, Tensor::ElementType type,
+    virtual inline Tensor exportTensor(ExportID slot, TensorElementType type,
                                        Span<const int64_t> dims) final
     {
         void *dev_ptr = gpuExec.getExported((uint32_t)slot);
@@ -228,31 +228,31 @@ void Manager::step()
 
 Tensor Manager::resetTensor() const
 {
-    return impl_->exportTensor(ExportID::Reset, Tensor::ElementType::Int32,
+    return impl_->exportTensor(ExportID::Reset, TensorElementType::Int32,
                                {impl_->cfg.numWorlds, 1});
 }
 
 Tensor Manager::actionTensor() const
 {
-    return impl_->exportTensor(ExportID::Action, Tensor::ElementType::Int32,
+    return impl_->exportTensor(ExportID::Action, TensorElementType::Int32,
         {impl_->cfg.numWorlds, 1});
 }
 
 Tensor Manager::observationTensor() const
 {
-    return impl_->exportTensor(ExportID::GridPos, Tensor::ElementType::Int32,
+    return impl_->exportTensor(ExportID::GridPos, TensorElementType::Int32,
         {impl_->cfg.numWorlds, 2});
 }
 
 Tensor Manager::rewardTensor() const
 {
-    return impl_->exportTensor(ExportID::Reward, Tensor::ElementType::Float32,
+    return impl_->exportTensor(ExportID::Reward, TensorElementType::Float32,
         {impl_->cfg.numWorlds, 1});
 }
 
 Tensor Manager::doneTensor() const
 {
-    return impl_->exportTensor(ExportID::Done, Tensor::ElementType::Float32,
+    return impl_->exportTensor(ExportID::Done, TensorElementType::Float32,
         {impl_->cfg.numWorlds, 1});
 }
 

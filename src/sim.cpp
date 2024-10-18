@@ -119,8 +119,10 @@ inline void tick(Engine &ctx,
     reward.r = cur_cell.reward;
 }
 
-void Sim::setupTasks(TaskGraphBuilder &builder, const Config &)
+void Sim::setupTasks(TaskGraphManager &taskgraph_mgr,
+                     const Config &)
 {
+    TaskGraphBuilder &builder = taskgraph_mgr.init(0);
     builder.addToGraph<ParallelForNode<Engine, tick,
         Action, Reset, GridPos, Reward, Done, CurStep>>({});
 }

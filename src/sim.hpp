@@ -20,7 +20,7 @@ struct Sim : public madrona::WorldBase {
     static void registerTypes(madrona::ECSRegistry &registry,
                               const Config &cfg);
 
-    static void setupTasks(madrona::TaskGraphBuilder &builder,
+    static void setupTasks(madrona::TaskGraphManager &taskgraph_mgr,
                            const Config &cfg);
 
     Sim(Engine &ctx, const Config &cfg, const WorldInit &init);

@@ -54,11 +54,11 @@ static void tagEnd(Cell *cells,
 }
 
 static Cell * setupCellData(
-    const nb::ndarray<bool, nb::shape<nb::any, nb::any>,
+    const nb::ndarray<bool, nb::shape<-1, -1>,
         nb::c_contig, nb::device::cpu> &walls,
-    const nb::ndarray<float, nb::shape<nb::any, nb::any>,
+    const nb::ndarray<float, nb::shape<-1, -1>,
         nb::c_contig, nb::device::cpu> &rewards,
-    const nb::ndarray<int32_t, nb::shape<nb::any, 2>,
+    const nb::ndarray<int32_t, nb::shape<-1, 2>,
         nb::c_contig, nb::device::cpu> &end_cells,
     int64_t grid_x,
     int64_t grid_y)
@@ -79,11 +79,11 @@ NB_MODULE(_madrona_simple_example_cpp, m) {
 
     nb::class_<Manager> (m, "SimpleGridworldSimulator")
         .def("__init__", [](Manager *self,
-                            nb::ndarray<bool, nb::shape<nb::any, nb::any>,
+                            nb::ndarray<bool, nb::shape<-1, -1>,
                                 nb::c_contig, nb::device::cpu> walls,
-                            nb::ndarray<float, nb::shape<nb::any, nb::any>,
+                            nb::ndarray<float, nb::shape<-1, -1>,
                                 nb::c_contig, nb::device::cpu> rewards,
-                            nb::ndarray<int32_t, nb::shape<nb::any, 2>,
+                            nb::ndarray<int32_t, nb::shape<-1, 2>,
                                 nb::c_contig, nb::device::cpu> end_cells,
                             int64_t start_x,
                             int64_t start_y,
